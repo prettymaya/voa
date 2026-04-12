@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VOA Shadow Tracker</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="label">VOA Learning English</p>
+      <h1>Shadow Tracker</h1>
+    </div>
+    <div class="stats" aria-label="Shadowing özeti">
+      <div><strong id="todayMinutes">0 dk</strong><span>Bugün</span></div>
+      <div><strong id="totalMinutes">0 dk</strong><span>Toplam</span></div>
+      <div><strong id="shadowedCount">0</strong><span>Shadowed</span></div>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="controls" aria-label="Filtreler">
+      <div class="levelTabs" id="levelTabs">
+        <button class="tab active" data-level="all">All</button>
+        <button class="tab" data-level="Beginning">Beginning</button>
+        <button class="tab" data-level="Intermediate">Intermediate</button>
+        <button class="tab" data-level="Advanced">Advanced</button>
+      </div>
+
+      <input id="search" type="search" placeholder="Başlık, seri veya açıklama ara...">
+
+      <div class="filterRow">
+        <select id="sectionFilter"></select>
+        <select id="typeFilter">
+          <option value="all">Her şey</option>
+          <option value="media">Video + Audio</option>
+          <option value="video">Video</option>
+          <option value="audio">Audio</option>
+          <option value="article">Article</option>
+        </select>
+        <select id="statusFilter">
+          <option value="all">Tüm durumlar</option>
+          <option value="unshadowed">Shadowed değil</option>
+          <option value="shadowed">Shadowed</option>
+        </select>
+      </div>
+
+      <div class="utilityRow">
+        <span id="catalogMeta">Katalog yükleniyor...</span>
+        <div>
+          <button id="resetToday" class="ghost danger">Bugünü sıfırla</button>
+          <button id="exportDb" class="ghost">DB dışa aktar</button>
+          <label class="ghost fileBtn">
+            DB içe aktar
+            <input id="importDb" type="file" accept="application/json">
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="resultTop">
+      <h2>VOA kataloğu</h2>
+      <p id="resultCount">0 sonuç</p>
+    </section>
+
+    <section id="grid" class="list" aria-live="polite"></section>
+    <button id="showMore" class="showMore">Daha fazla göster</button>
+  </main>
+
+  <script src="./voa_catalog.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
