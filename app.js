@@ -60,6 +60,11 @@ function playbackRate() {
   return Number.isFinite(rate) && rate > 0 ? rate : 1;
 }
 
+function effectiveMinutes(minutes) {
+  const rate = playbackRate();
+  return minutes && rate ? minutes / rate : minutes;
+}
+
 function minutesLabel(minutes) {
   const total = Math.round(minutes || 0);
   const h = Math.floor(total / 60);
@@ -93,7 +98,10 @@ function parseDurationMinutes(duration) {
 }
 
 function durationLabel(duration) {
-  const minutes = parseDurationMinutes(duration);
+  return durationMinutesLabel(parseDurationMinutes(duration));
+}
+
+function durationMinutesLabel(minutes) {
   if (!minutes) return "";
   const totalSeconds = Math.round(minutes * 60);
   const h = Math.floor(totalSeconds / 3600);
@@ -248,6 +256,9 @@ function renderItem(item) {
   const level = itemLevel(item);
   const itemDuration = durationLabel(item.duration);
   const itemMinutes = parseDurationMinutes(item.duration);
+  const adjustedMinutes = effectiveMinutes(itemMinutes);
+  const adjustedDuration = durationMinutesLabel(adjustedMinutes);
+  const speedLabel = playbackRate() === 1 ? "" : ` @ ${playbackRate().toFixed(1)}x`;
   const canPlayInside = !!item.mediaUrl && (mediaType === "audio" || mediaType === "video");
   const isPlayerOpen = state.playerId === item.id && canPlayInside;
 
@@ -273,7 +284,7 @@ function renderItem(item) {
         </div>
         ${isPlayerOpen ? renderPlayer(item, mediaType) : ""}
         <div class="quickMinutes">
-          ${itemMinutes ? `<button class="mini durationAdd" data-action="min" data-id="${escapeAttr(item.id)}" data-min="${escapeAttr(itemMinutes)}">+Süre (${escapeHtml(itemDuration)})</button>` : ""}
+          ${itemMinutes ? `<button class="mini durationAdd" data-action="min" data-id="${escapeAttr(item.id)}" data-base-min="${escapeAttr(itemMinutes)}" data-min="${escapeAttr(adjustedMinutes)}">+Süre (${escapeHtml(adjustedDuration)}${escapeHtml(speedLabel)})</button>` : ""}
           <button class="mini" data-action="min" data-id="${escapeAttr(item.id)}" data-min="5">+5 dk</button>
           <button class="mini" data-action="min" data-id="${escapeAttr(item.id)}" data-min="10">+10 dk</button>
           <button class="mini" data-action="min" data-id="${escapeAttr(item.id)}" data-min="20">+20 dk</button>
@@ -302,7 +313,7 @@ function renderPlayer(item, mediaType) {
       ${media}
       <div class="speedRow" aria-label="Oynatma hızı">
         <span>Hız</span>
-        ${[0.8, 0.9, 1, 1.1, 1.2, 1.3].map(value => `
+        ${[0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5].map(value => `
           <button class="mini speed ${rate === value ? "active" : ""}" data-action="speed" data-id="${escapeAttr(item.id)}" data-rate="${value}">${value.toFixed(1)}x</button>
         `).join("")}
       </div>
@@ -313,6 +324,18 @@ function renderPlayer(item, mediaType) {
 function applyPlaybackRate(scope = document) {
   scope.querySelectorAll(".inlineMedia").forEach(media => {
     media.playbackRate = playbackRate();
+  });
+}
+
+function updateDurationButtons(scope = document) {
+  const rate = playbackRate();
+  scope.querySelectorAll(".durationAdd[data-base-min]").forEach(button => {
+    const baseMinutes = Number(button.dataset.baseMin || 0);
+    const adjusted = effectiveMinutes(baseMinutes);
+    const label = durationMinutesLabel(adjusted);
+    const speedLabel = rate === 1 ? "" : ` @ ${rate.toFixed(1)}x`;
+    button.dataset.min = String(adjusted);
+    button.textContent = `+Süre (${label}${speedLabel})`;
   });
 }
 
@@ -408,6 +431,7 @@ function bindEvents() {
       state.db.settings.playbackRate = Number(button.dataset.rate || 1);
       saveDb();
       applyPlaybackRate();
+      updateDurationButtons();
       button.closest(".speedRow")?.querySelectorAll(".speed").forEach(speedButton => {
         speedButton.classList.toggle("active", speedButton === button);
       });
