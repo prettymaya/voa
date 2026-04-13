@@ -4,6 +4,7 @@ const state = {
   db: loadDb(),
   visible: 100,
   level: "all",
+  playerId: null,
 };
 
 const els = {
@@ -52,6 +53,11 @@ function loadDb() {
 function saveDb() {
   state.db.updatedAt = new Date().toISOString();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.db));
+}
+
+function playbackRate() {
+  const rate = Number(state.db.settings.playbackRate || 1);
+  return Number.isFinite(rate) && rate > 0 ? rate : 1;
 }
 
 function minutesLabel(minutes) {
@@ -242,6 +248,8 @@ function renderItem(item) {
   const level = itemLevel(item);
   const itemDuration = durationLabel(item.duration);
   const itemMinutes = parseDurationMinutes(item.duration);
+  const canPlayInside = !!item.mediaUrl && (mediaType === "audio" || mediaType === "video");
+  const isPlayerOpen = state.playerId === item.id && canPlayInside;
 
   return `
     <article class="item" data-card-id="${escapeAttr(item.id)}">
@@ -259,9 +267,11 @@ function renderItem(item) {
         <div class="meta">${escapeHtml(item.section || "")}${date ? ` · ${escapeHtml(date)}` : ""}${itemDuration ? ` · süre: ${escapeHtml(itemDuration)}` : ""}</div>
         ${description ? `<p class="summary">${escapeHtml(description)}</p>` : ""}
         <div class="actions">
+          ${canPlayInside ? `<button class="primary" data-action="player" data-id="${escapeAttr(item.id)}">${isPlayerOpen ? "Oynatıcıyı kapat" : "Site içinde oynat"}</button>` : ""}
           <a class="primary" href="${escapeAttr(item.url)}" target="_blank" rel="noopener">VOA'da aç</a>
           <button class="ghost" data-action="toggle" data-id="${escapeAttr(item.id)}">${done ? "Shadowed kaldır" : "Shadowed"}</button>
         </div>
+        ${isPlayerOpen ? renderPlayer(item, mediaType) : ""}
         <div class="quickMinutes">
           ${itemMinutes ? `<button class="mini durationAdd" data-action="min" data-id="${escapeAttr(item.id)}" data-min="${escapeAttr(itemMinutes)}">+Süre (${escapeHtml(itemDuration)})</button>` : ""}
           <button class="mini" data-action="min" data-id="${escapeAttr(item.id)}" data-min="5">+5 dk</button>
@@ -280,6 +290,30 @@ function renderItem(item) {
       </div>
     </article>
   `;
+}
+
+function renderPlayer(item, mediaType) {
+  const rate = playbackRate();
+  const media = mediaType === "video"
+    ? `<video class="inlineMedia" src="${escapeAttr(item.mediaUrl)}" controls playsinline preload="metadata"></video>`
+    : `<audio class="inlineMedia" src="${escapeAttr(item.mediaUrl)}" controls preload="metadata"></audio>`;
+  return `
+    <div class="playerBox">
+      ${media}
+      <div class="speedRow" aria-label="Oynatma hızı">
+        <span>Hız</span>
+        ${[0.8, 0.9, 1, 1.1, 1.2, 1.3].map(value => `
+          <button class="mini speed ${rate === value ? "active" : ""}" data-action="speed" data-id="${escapeAttr(item.id)}" data-rate="${value}">${value.toFixed(1)}x</button>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function applyPlaybackRate(scope = document) {
+  scope.querySelectorAll(".inlineMedia").forEach(media => {
+    media.playbackRate = playbackRate();
+  });
 }
 
 function exportDb() {
@@ -365,6 +399,19 @@ function bindEvents() {
     const id = button.dataset.id;
     const item = catalogItems().find(entry => entry.id === id);
     if (!item) return;
+    if (button.dataset.action === "player") {
+      state.playerId = state.playerId === id ? null : id;
+      render();
+      applyPlaybackRate();
+    }
+    if (button.dataset.action === "speed") {
+      state.db.settings.playbackRate = Number(button.dataset.rate || 1);
+      saveDb();
+      applyPlaybackRate();
+      button.closest(".speedRow")?.querySelectorAll(".speed").forEach(speedButton => {
+        speedButton.classList.toggle("active", speedButton === button);
+      });
+    }
     if (button.dataset.action === "toggle") toggleShadowed(item);
     if (button.dataset.action === "min") addMinutes(item, Number(button.dataset.min || 0));
     if (button.dataset.action === "custom-min") {

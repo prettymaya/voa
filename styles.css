@@ -310,6 +310,45 @@ select {
   color: var(--voa-dark);
 }
 
+.playerBox {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #c8d6ee;
+  border-radius: 16px;
+  background: #eef5ff;
+}
+
+.inlineMedia {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  border-radius: 12px;
+  background: #111827;
+}
+
+audio.inlineMedia {
+  min-height: 42px;
+  background: transparent;
+}
+
+.speedRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  color: var(--voa-dark);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.speed.active {
+  border-color: var(--voa);
+  color: #fff;
+  background: var(--voa);
+}
+
 .cardStats {
   display: flex;
   gap: 14px;
