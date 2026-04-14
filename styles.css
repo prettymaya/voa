@@ -277,6 +277,11 @@ select {
   background: #f7e7a5;
 }
 
+.tag.source {
+  color: #6b3511;
+  background: #ffe1cf;
+}
+
 .quickMinutes {
   margin-top: 8px;
 }

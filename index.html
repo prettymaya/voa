@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>VOA Shadow Tracker</title>
+  <title>Shadow Tracker</title>
   <meta name="theme-color" content="#245caa">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="VOA Shadow">
+  <meta name="apple-mobile-web-app-title" content="Shadow">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
@@ -16,7 +16,7 @@
 <body>
   <header class="topbar">
     <div>
-      <p class="label">VOA Learning English</p>
+      <p class="label">VOA + Podcasts</p>
       <h1>Shadow Tracker</h1>
     </div>
     <div class="stats" aria-label="Shadowing özeti">
@@ -29,10 +29,6 @@
   <main class="page">
     <section class="controls" aria-label="Filtreler">
       <div class="levelTabs" id="levelTabs">
-        <button class="tab active" data-level="all">All</button>
-        <button class="tab" data-level="Beginning">Beginning</button>
-        <button class="tab" data-level="Intermediate">Intermediate</button>
-        <button class="tab" data-level="Advanced">Advanced</button>
       </div>
 
       <input id="search" type="search" placeholder="Başlık, seri veya açıklama ara...">
@@ -67,7 +63,7 @@
     </section>
 
     <section class="resultTop">
-      <h2>VOA kataloğu</h2>
+      <h2>Shadowing kataloğu</h2>
       <p id="resultCount">0 sonuç</p>
     </section>
 
@@ -76,6 +72,7 @@
   </main>
 
   <script src="./voa_catalog.js"></script>
+  <script src="./extra_catalog.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

@@ -1,4 +1,13 @@
 const STORAGE_KEY = "voa-shadow-hub-db-v1";
+const CATEGORY_ORDER = [
+  "all",
+  "Beginning",
+  "Intermediate",
+  "Advanced",
+  "American English Podcast",
+  "All Ears English",
+  "Learn English Podcast",
+];
 
 const state = {
   db: loadDb(),
@@ -153,7 +162,10 @@ function resetToday() {
 }
 
 function catalogItems() {
-  return (window.VOA_CATALOG && window.VOA_CATALOG.items) || [];
+  return [
+    ...((window.VOA_CATALOG && window.VOA_CATALOG.items) || []),
+    ...((window.EXTRA_CATALOG && window.EXTRA_CATALOG.items) || []),
+  ];
 }
 
 async function refreshCatalogFromJson() {
@@ -162,8 +174,10 @@ async function refreshCatalogFromJson() {
     const response = await fetch(`./voa_catalog_building.json?ts=${Date.now()}`, { cache: "no-store" });
     if (!response.ok) return;
     const incoming = await response.json();
-    if ((incoming.items || []).length > catalogItems().length) {
+    const currentVoaCount = ((window.VOA_CATALOG && window.VOA_CATALOG.items) || []).length;
+    if ((incoming.items || []).length > currentVoaCount) {
       window.VOA_CATALOG = incoming;
+      setupCategoryTabs();
       setupFilters();
       render();
     }
@@ -173,11 +187,24 @@ async function refreshCatalogFromJson() {
 }
 
 function itemLevel(item) {
+  if (item.source && item.source !== "VOA") return item.source;
   const value = String(item.level || "").toLowerCase();
   if (value === "beginner" || value === "beginning") return "Beginning";
   if (value === "intermediate") return "Intermediate";
   if (value === "advanced") return "Advanced";
   return item.level || "VOA";
+}
+
+function setupCategoryTabs() {
+  const available = new Set(catalogItems().map(itemLevel));
+  const categories = CATEGORY_ORDER.filter(category => category === "all" || available.has(category));
+  for (const category of [...available].sort()) {
+    if (!categories.includes(category)) categories.push(category);
+  }
+  els.levelTabs.innerHTML = categories.map(category => {
+    const label = category === "all" ? "All" : category;
+    return `<button class="tab ${state.level === category ? "active" : ""}" data-level="${escapeAttr(category)}">${escapeHtml(label)}</button>`;
+  }).join("");
 }
 
 function setupFilters() {
@@ -202,7 +229,7 @@ function filteredItems() {
   return catalogItems().filter(item => {
     const record = state.db.items[item.id];
     const level = itemLevel(item);
-    const haystack = `${item.title} ${item.description} ${item.section} ${level}`.toLowerCase();
+    const haystack = `${item.title} ${item.description} ${item.section} ${level} ${item.source || ""} ${item.accent || ""}`.toLowerCase();
     if (state.level !== "all" && level !== state.level) return false;
     if (q && !haystack.includes(q)) return false;
     if (section !== "all" && item.section !== section) return false;
@@ -229,11 +256,12 @@ function render() {
   renderStats();
   const items = filteredItems();
   const visibleItems = items.slice(0, state.visible);
-  const catalog = window.VOA_CATALOG || {};
-  const total = catalogItems().length;
+  const voaCount = ((window.VOA_CATALOG && window.VOA_CATALOG.items) || []).length;
+  const extraCount = ((window.EXTRA_CATALOG && window.EXTRA_CATALOG.items) || []).length;
+  const total = voaCount + extraCount;
   els.resultCount.textContent = `${visibleItems.length}/${items.length} filtre sonucu · toplam ${total}`;
   els.showMore.hidden = state.visible >= items.length;
-  els.catalogMeta.textContent = `${catalogItems().length} içerik · ${catalog.generatedAt ? new Date(catalog.generatedAt).toLocaleString("tr-TR") : "indeks bekleniyor"}`;
+  els.catalogMeta.textContent = `${voaCount} VOA · ${extraCount} podcast · toplam ${total}`;
   els.grid.innerHTML = visibleItems.length ? visibleItems.map(renderItem).join("") : renderEmptyState();
 }
 
@@ -254,6 +282,7 @@ function renderItem(item) {
   const date = (item.published || "").slice(0, 10);
   const mediaType = item.type || "article";
   const level = itemLevel(item);
+  const source = item.source || "VOA";
   const itemDuration = durationLabel(item.duration);
   const itemMinutes = parseDurationMinutes(item.duration);
   const adjustedMinutes = effectiveMinutes(itemMinutes);
@@ -270,6 +299,7 @@ function renderItem(item) {
       <div>
         <div class="actions">
           <span class="tag">${escapeHtml(level)}</span>
+          <span class="tag source">${escapeHtml(source)}</span>
           <span class="tag ${escapeAttr(mediaType)}">${escapeHtml(mediaType)}</span>
           ${itemDuration ? `<span class="tag duration">${escapeHtml(itemDuration)}</span>` : ""}
           ${done ? `<span class="tag done">Shadowed</span>` : ""}
@@ -279,7 +309,7 @@ function renderItem(item) {
         ${description ? `<p class="summary">${escapeHtml(description)}</p>` : ""}
         <div class="actions">
           ${canPlayInside ? `<button class="primary" data-action="player" data-id="${escapeAttr(item.id)}">${isPlayerOpen ? "Oynatıcıyı kapat" : "Site içinde oynat"}</button>` : ""}
-          <a class="primary" href="${escapeAttr(item.url)}" target="_blank" rel="noopener">VOA'da aç</a>
+          <a class="primary" href="${escapeAttr(item.url)}" target="_blank" rel="noopener">${escapeHtml(source)}'da aç</a>
           <button class="ghost" data-action="toggle" data-id="${escapeAttr(item.id)}">${done ? "Shadowed kaldır" : "Shadowed"}</button>
         </div>
         ${isPlayerOpen ? renderPlayer(item, mediaType) : ""}
@@ -386,7 +416,7 @@ function bindEvents() {
     if (!button) return;
     state.level = button.dataset.level;
     state.visible = 100;
-    document.querySelectorAll(".tab").forEach(tab => tab.classList.toggle("active", tab === button));
+    els.levelTabs.querySelectorAll(".tab").forEach(tab => tab.classList.toggle("active", tab === button));
     setupFilters();
     render();
   });
@@ -450,6 +480,7 @@ function bindEvents() {
   });
 }
 
+setupCategoryTabs();
 setupFilters();
 bindEvents();
 render();
