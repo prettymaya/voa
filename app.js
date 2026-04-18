@@ -7,6 +7,8 @@ const CATEGORY_ORDER = [
   "American English Podcast",
   "All Ears English",
   "Learn English Podcast",
+  "The Moth",
+  "Open to Debate",
 ];
 
 const state = {
@@ -106,6 +108,19 @@ function parseDurationMinutes(duration) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
+function parseDurationSeconds(duration) {
+  return Math.round(parseDurationMinutes(duration) * 60);
+}
+
+function secondsLabel(seconds) {
+  const total = Math.max(0, Math.round(seconds || 0));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 function durationLabel(duration) {
   return durationMinutesLabel(parseDurationMinutes(duration));
 }
@@ -126,6 +141,7 @@ function itemState(id) {
   if (!state.db.items[id]) {
     state.db.items[id] = {
       shadowed: false,
+      partialSeconds: 0,
       minutes: 0,
       count: 0,
       updatedAt: null,
@@ -146,9 +162,48 @@ function addMinutes(item, minutes) {
   render();
 }
 
+function savePartialProgress(item, seconds) {
+  const record = itemState(item.id);
+  const previous = Number(record.partialSeconds || 0);
+  const next = Math.max(previous, Math.floor(Number(seconds || 0)));
+  if (!Number.isFinite(next) || next <= 0) return;
+
+  const itemTotalSeconds = parseDurationSeconds(item.duration);
+  const deltaSeconds = Math.max(0, next - previous);
+  record.partialSeconds = next;
+  record.updatedAt = new Date().toISOString();
+
+  if (deltaSeconds > 0) {
+    const date = todayKey();
+    const minutes = effectiveMinutes(deltaSeconds / 60);
+    record.minutes = (record.minutes || 0) + minutes;
+    state.db.days[date] = (state.db.days[date] || 0) + minutes;
+  }
+
+  if (itemTotalSeconds && next >= itemTotalSeconds * 0.95) {
+    record.shadowed = true;
+    if (!record.count) record.count = 1;
+  }
+
+  saveDb();
+  render();
+}
+
+function clearPartialProgress(item) {
+  const record = itemState(item.id);
+  record.partialSeconds = 0;
+  record.updatedAt = new Date().toISOString();
+  saveDb();
+  render();
+}
+
 function toggleShadowed(item) {
   const record = itemState(item.id);
   record.shadowed = !record.shadowed;
+  if (record.shadowed) {
+    const itemTotalSeconds = parseDurationSeconds(item.duration);
+    if (itemTotalSeconds) record.partialSeconds = Math.max(record.partialSeconds || 0, itemTotalSeconds);
+  }
   record.updatedAt = new Date().toISOString();
   if (record.shadowed && !record.count) record.count = 1;
   saveDb();
@@ -236,6 +291,7 @@ function filteredItems() {
     if (type === "media" && item.type !== "video" && item.type !== "audio") return false;
     if (type !== "all" && type !== "media" && item.type !== type) return false;
     if (status === "shadowed" && !record?.shadowed) return false;
+    if (status === "partial" && (record?.shadowed || !(record?.partialSeconds > 0))) return false;
     if (status === "unshadowed" && record?.shadowed) return false;
     return true;
   });
@@ -285,11 +341,15 @@ function renderItem(item) {
   const source = item.source || "VOA";
   const itemDuration = durationLabel(item.duration);
   const itemMinutes = parseDurationMinutes(item.duration);
+  const itemSeconds = parseDurationSeconds(item.duration);
   const adjustedMinutes = effectiveMinutes(itemMinutes);
   const adjustedDuration = durationMinutesLabel(adjustedMinutes);
   const speedLabel = playbackRate() === 1 ? "" : ` @ ${playbackRate().toFixed(1)}x`;
   const canPlayInside = !!item.mediaUrl && (mediaType === "audio" || mediaType === "video");
   const isPlayerOpen = state.playerId === item.id && canPlayInside;
+  const partialSeconds = Number(record.partialSeconds || 0);
+  const partialPct = itemSeconds ? Math.min(100, Math.round((partialSeconds / itemSeconds) * 100)) : 0;
+  const isPartial = !done && partialSeconds > 0;
 
   return `
     <article class="item" data-card-id="${escapeAttr(item.id)}">
@@ -302,6 +362,7 @@ function renderItem(item) {
           <span class="tag source">${escapeHtml(source)}</span>
           <span class="tag ${escapeAttr(mediaType)}">${escapeHtml(mediaType)}</span>
           ${itemDuration ? `<span class="tag duration">${escapeHtml(itemDuration)}</span>` : ""}
+          ${isPartial ? `<span class="tag partial">Kısmi · ${escapeHtml(secondsLabel(partialSeconds))}</span>` : ""}
           ${done ? `<span class="tag done">Shadowed</span>` : ""}
         </div>
         <h3>${escapeHtml(item.title)}</h3>
@@ -327,6 +388,7 @@ function renderItem(item) {
         <div class="cardStats">
           <span>${minutesLabel(record.minutes || 0)}</span>
           <span>${record.count || 0} tekrar</span>
+          ${partialSeconds ? `<span>${escapeHtml(secondsLabel(partialSeconds))}${itemSeconds ? ` / ${escapeHtml(secondsLabel(itemSeconds))}` : ""} kaydedildi${partialPct ? ` · %${partialPct}` : ""}</span>` : ""}
         </div>
       </div>
     </article>
@@ -336,11 +398,18 @@ function renderItem(item) {
 function renderPlayer(item, mediaType) {
   const rate = playbackRate();
   const media = mediaType === "video"
-    ? `<video class="inlineMedia" src="${escapeAttr(item.mediaUrl)}" controls playsinline preload="metadata"></video>`
-    : `<audio class="inlineMedia" src="${escapeAttr(item.mediaUrl)}" controls preload="metadata"></audio>`;
+    ? `<video class="inlineMedia" data-media-id="${escapeAttr(item.id)}" src="${escapeAttr(item.mediaUrl)}" controls playsinline preload="metadata"></video>`
+    : `<audio class="inlineMedia" data-media-id="${escapeAttr(item.id)}" src="${escapeAttr(item.mediaUrl)}" controls preload="metadata"></audio>`;
+  const record = state.db.items[item.id] || {};
+  const partialSeconds = Number(record.partialSeconds || 0);
   return `
     <div class="playerBox">
       ${media}
+      <div class="resumeRow">
+        <span>${partialSeconds ? `Kaldığın yer: ${escapeHtml(secondsLabel(partialSeconds))}` : "Kayıtlı ilerleme yok"}</span>
+        <button class="mini" data-action="save-progress" data-id="${escapeAttr(item.id)}">Şu ana kadar shadowed</button>
+        ${partialSeconds ? `<button class="mini dangerMini" data-action="clear-progress" data-id="${escapeAttr(item.id)}">Kaldığım yeri temizle</button>` : ""}
+      </div>
       <div class="speedRow" aria-label="Oynatma hızı">
         <span>Hız</span>
         ${[0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5].map(value => `
@@ -354,6 +423,13 @@ function renderPlayer(item, mediaType) {
 function applyPlaybackRate(scope = document) {
   scope.querySelectorAll(".inlineMedia").forEach(media => {
     media.playbackRate = playbackRate();
+    const record = state.db.items[media.dataset.mediaId] || {};
+    const startAt = Number(record.partialSeconds || 0);
+    if (startAt > 0) {
+      media.addEventListener("loadedmetadata", () => {
+        if (media.duration && startAt < media.duration - 2) media.currentTime = startAt;
+      }, { once: true });
+    }
   });
 }
 
@@ -466,6 +542,11 @@ function bindEvents() {
         speedButton.classList.toggle("active", speedButton === button);
       });
     }
+    if (button.dataset.action === "save-progress") {
+      const media = button.closest(".playerBox")?.querySelector(".inlineMedia");
+      savePartialProgress(item, media?.currentTime || 0);
+    }
+    if (button.dataset.action === "clear-progress") clearPartialProgress(item);
     if (button.dataset.action === "toggle") toggleShadowed(item);
     if (button.dataset.action === "min") addMinutes(item, Number(button.dataset.min || 0));
     if (button.dataset.action === "custom-min") {

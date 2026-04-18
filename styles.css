@@ -262,6 +262,11 @@ select {
   background: var(--done);
 }
 
+.tag.partial {
+  color: #63410b;
+  background: #f9d982;
+}
+
 .tag.audio {
   color: #784a00;
   background: #ffe8bd;
@@ -346,6 +351,21 @@ audio.inlineMedia {
   color: var(--voa-dark);
   font-size: 13px;
   font-weight: 900;
+}
+
+.resumeRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--voa-dark);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.dangerMini {
+  color: var(--danger);
+  background: #fff1f2;
 }
 
 .speed.active {
